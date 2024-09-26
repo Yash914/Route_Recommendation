@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Recommendation with Google and HERE Maps</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        #map {
+            height: 80vh;
+            width: 100%;
+        }
+        .form-container {
+            padding: 20px;
+            background-color: #f8f9fa;
+            text-align: center;
+        }
+        .form-container input {
+            padding: 10px;
+            margin: 5px;
+            width: 200px;
+        }
+        .form-container button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <h2>Enter Delivery Points</h2>
+        <input type="text" id="start" placeholder="Start Location">
+        <input type="text" id="end" placeholder="Destination Location">
+        <button onclick="calculateRoute()">Calculate Route</button>
+    </div>
+    
+    <div id="map"></div>
+
+    <!-- API -->
+    <script src="https://maps.gomaps.pro/maps/api/js?key=AlzaSyyeIdpIz0UJtnCbvu2Gia9NxgsjZrjaHEl&callback=initMap" async defer></script>
+
+    <script src="https://js.api.here.com/v3/3.1/mapsjs-core.js"></script>
+    <script src="https://js.api.here.com/v3/3.1/mapsjs-service.js"></script>
+
+    <script>
+        let map;
+        let platform;
+        
+        // initMap methid for loading map
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: {lat: 28.7041, lng: 77.1025},  // New Delhi
+                zoom: 12
+            });
+
+            directionsService = new google.maps.DirectionsService();
+            directionsRenderer = new google.maps.DirectionsRenderer();
+            directionsRenderer.setMap(map); 
+        }
+
+        
+        platform = new H.service.Platform({
+            apikey: 'AlzaSyyeIdpIz0UJtnCbvu2Gia9NxgsjZrjaHEl'
+        });
+
+        function calculateRoute() {
+            const start = document.getElementById('start').value;
+            const end = document.getElementById('end').value;
+
+
+            let request = {
+                origin:start,
+                destination:end,
+                travelMode:'DRIVING'
+            }
+            directionsService.route(request, function (result, status) {
+        if (status == google.maps.DirectionsStatus.OK) {
+            // Display the route on the map
+            directionsRenderer.setDirections(result);
+        } else {
+            // Display error message
+            alert("Could not retrieve driving route.");
+        }
+    });
+}
+
+        // Geocode function using HERE API
+        function geocode(address, callback) {
+            const geocoder = platform.getGeocodingService();
+            geocoder.geocode({ q: address }, (result) => {
+                if (result.Response.View.length > 0) {
+                    const location = result.Response.View[0].Result[0].Location.DisplayPosition;
+                    callback({ lat: location.Latitude, lng: location.Longitude });
+                } else {
+                    callback(null);
+                }
+            }, (error) => {
+                console.error('Geocoding error:', error);
+                callback(null);
+            });
+        }
+
+        // HERE Routing API v8 Request
+        function requestRouteV8(start, end) {
+            const url = `https://router.hereapi.com/v8/routes?transportMode=car&origin=${start.lat},${start.lng}&destination=${end.lat},${end.lng}&return=polyline,summary&apiKey=YOUR_HERE_API_KEY`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.routes.length) {
+                        const route = data.routes[0];
+                        const routeShape = route.sections[0].polyline;
+
+                        // Draw route on Google Maps
+                        drawRouteOnGoogleMap(routeShape);
+                    } else {
+                        alert('No routes found.');
+                    }
+                })
+                .catch(error => {
+                    alert('Error calculating the route: ' + error);
+                });
+        }
+
+        // Draw HERE Route on Google Maps
+        function drawRouteOnGoogleMap(polyline) {
+            const decodedPath = H.geo.LineString.fromFlexiblePolyline(polyline).getLatLngAltArray();
+            const googlePath = [];
+
+            // Convert HERE polyline into Google Maps LatLng objects
+            for (let i = 0; i < decodedPath.length; i += 3) {
+                googlePath.push(new google.maps.LatLng(decodedPath[i], decodedPath[i + 1]));
+            }
+
+            const routeLine = new google.maps.Polyline({
+                path: googlePath,
+                geodesic: true,
+                strokeColor: '#FFF000',
+                strokeOpacity: 1.0,
+                strokeWeight: 4
+            });
+
+            routeLine.setMap(map);  // Display the route on Google Maps
+        }
+    </script>
+</body>
+</html>
